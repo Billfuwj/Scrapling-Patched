@@ -187,34 +187,40 @@ class ResponseFactory:
         return history
 
     @classmethod
-    def _get_page_content(cls, page: SyncPage) -> str:
+    def _get_page_content(cls, page: SyncPage, max_retries: int = 20) -> str:
         """
         A workaround for the Playwright issue with `page.content()` on Windows. Ref.: https://github.com/microsoft/playwright/issues/16108
         :param page: The page to extract content from.
+        :param max_retries: Maximum number of retries before giving up (default 20, ~10s).
         :return:
         """
-        while True:
+        for attempt in range(max_retries):
             try:
                 return page.content() or ""
             except PlaywrightError:
+                log.warning(f"page.content() failed (attempt {attempt + 1}/{max_retries}), retrying in 500ms...")
                 page.wait_for_timeout(500)
                 continue
-        return ""  # pyright: ignore
+        log.error(f"page.content() failed after {max_retries} retries, returning empty string.")
+        return ""
 
     @classmethod
-    async def _get_async_page_content(cls, page: AsyncPage) -> str:
+    async def _get_async_page_content(cls, page: AsyncPage, max_retries: int = 20) -> str:
         """
         A workaround for the Playwright issue with `page.content()` on Windows. Ref.: https://github.com/microsoft/playwright/issues/16108
         :param page: The page to extract content from.
+        :param max_retries: Maximum number of retries before giving up (default 20, ~10s).
         :return:
         """
-        while True:
+        for attempt in range(max_retries):
             try:
                 return (await page.content()) or ""
             except PlaywrightError:
+                log.warning(f"page.content() failed (attempt {attempt + 1}/{max_retries}), retrying in 500ms...")
                 await page.wait_for_timeout(500)
                 continue
-        return ""  # pyright: ignore
+        log.error(f"page.content() failed after {max_retries} retries, returning empty string.")
+        return ""
 
     @classmethod
     async def from_async_playwright_response(

@@ -121,10 +121,16 @@ class StealthySession(SyncSession, StealthySessionMixin):
         else:
             log.info(f'The turnstile version discovered is "{challenge_type}"')
             if challenge_type == "non-interactive":
+                max_wait_attempts = 60  # 最多等60秒
+                wait_attempts = 0
                 while "<title>Just a moment...</title>" in (ResponseFactory._get_page_content(page)):
+                    if wait_attempts >= max_wait_attempts:
+                        log.warning("Cloudflare non-interactive challenge didn't resolve after 60s, continuing...")
+                        break
                     log.info("Waiting for Cloudflare wait page to disappear.")
                     page.wait_for_timeout(1000)
                     page.wait_for_load_state()
+                    wait_attempts += 1
                 log.info("Cloudflare captcha is solved")
                 return None
 
@@ -132,9 +138,14 @@ class StealthySession(SyncSession, StealthySessionMixin):
                 box_selector = "#cf_turnstile div, #cf-turnstile div, .turnstile>div>div"
                 if challenge_type != "embedded":
                     box_selector = ".main-content p+div>div>div"
+                    verify_attempts = 0
                     while "Verifying you are human." in ResponseFactory._get_page_content(page):
-                        # Waiting for the verify spinner to disappear, checking every 1s if it disappeared
+                        if verify_attempts >= 40:  # 最多等20秒
+                            log.warning("Cloudflare 'Verifying you are human' didn't resolve after 20s, continuing...")
+                            break
+                        # Waiting for the verify spinner to disappear, checking every 500ms if it disappeared
                         page.wait_for_timeout(500)
+                        verify_attempts += 1
 
                 outer_box: Any = {}
                 iframe = page.frame(url=__CF_PATTERN__)
@@ -142,9 +153,14 @@ class StealthySession(SyncSession, StealthySessionMixin):
                     self._wait_for_page_stability(iframe, True, False)
 
                     if challenge_type != "embedded":
+                        iframe_attempts = 0
                         while not iframe.frame_element().is_visible():
+                            if iframe_attempts >= 20:  # 最多等10秒
+                                log.warning("Cloudflare iframe didn't become visible after 10s, continuing...")
+                                break
                             # Double-checking that the iframe is loaded
                             page.wait_for_timeout(500)
+                            iframe_attempts += 1
 
                     outer_box = iframe.frame_element().bounding_box()
 
@@ -374,10 +390,16 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
         else:
             log.info(f'The turnstile version discovered is "{challenge_type}"')
             if challenge_type == "non-interactive":
+                max_wait_attempts = 60  # 最多等60秒
+                wait_attempts = 0
                 while "<title>Just a moment...</title>" in (await ResponseFactory._get_async_page_content(page)):
+                    if wait_attempts >= max_wait_attempts:
+                        log.warning("Cloudflare non-interactive challenge didn't resolve after 60s, continuing...")
+                        break
                     log.info("Waiting for Cloudflare wait page to disappear.")
                     await page.wait_for_timeout(1000)
                     await page.wait_for_load_state()
+                    wait_attempts += 1
                 log.info("Cloudflare captcha is solved")
                 return None
 
@@ -385,9 +407,14 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
                 box_selector = "#cf_turnstile div, #cf-turnstile div, .turnstile>div>div"
                 if challenge_type != "embedded":
                     box_selector = ".main-content p+div>div>div"
+                    verify_attempts = 0
                     while "Verifying you are human." in (await ResponseFactory._get_async_page_content(page)):
-                        # Waiting for the verify spinner to disappear, checking every 1s if it disappeared
+                        if verify_attempts >= 40:  # 最多等20秒
+                            log.warning("Cloudflare 'Verifying you are human' didn't resolve after 20s, continuing...")
+                            break
+                        # Waiting for the verify spinner to disappear, checking every 500ms if it disappeared
                         await page.wait_for_timeout(500)
+                        verify_attempts += 1
 
                 outer_box: Any = {}
                 iframe = page.frame(url=__CF_PATTERN__)
@@ -395,9 +422,14 @@ class AsyncStealthySession(AsyncSession, StealthySessionMixin):
                     await self._wait_for_page_stability(iframe, True, False)
 
                     if challenge_type != "embedded":
+                        iframe_attempts = 0
                         while not await (await iframe.frame_element()).is_visible():
+                            if iframe_attempts >= 20:  # 最多等10秒
+                                log.warning("Cloudflare iframe didn't become visible after 10s, continuing...")
+                                break
                             # Double-checking that the iframe is loaded
                             await page.wait_for_timeout(500)
+                            iframe_attempts += 1
 
                     outer_box = await (await iframe.frame_element()).bounding_box()
 
